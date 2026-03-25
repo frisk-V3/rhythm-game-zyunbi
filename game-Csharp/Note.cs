@@ -1,39 +1,39 @@
 using UnityEngine;
 
 public class Note : MonoBehaviour {
-    private float targetTime; // 判定ラインに重なるべき時間
-    private float spawnTime;  // 生成された時間
-    private float scrollSpeed; // 落ちる速度
-    private int lane;
+    private float targetTime;
+    private float scrollSpeed;
+    private AudioSource bgm;
 
-    // --- ChartManagerから呼ばれる「初期化（メッセージ）」 ---
-    public void Init(int lane, int width, float targetTime, float speed) {
-        this.lane = lane;
+    public void Init(int lane, int width, float targetTime, float speed, AudioSource audio) {
         this.targetTime = targetTime;
         this.scrollSpeed = speed;
-        this.spawnTime = Time.time;
+        this.bgm = audio;
 
-        // 1. 横位置(X)と幅(Scale)をセット
-        // 12レーンある想定で、中心を0にする計算（調整してね！）
-        float posX = (lane - 5.5f) * 1.0f; 
-        transform.position = new Vector3(posX, 10f, 0f); // 最初は画面上の方へ
-        transform.localScale = new Vector3(width, 0.2f, 1f); // 幅をプロセカ風に
+        // 【2D計算】X座標：12レーンの中央を0にする（1レーン幅を0.8ピクセルと想定）
+        float posX = (lane - 5.5f) * 0.8f; 
+        
+        // 初期の高さ(Y)は適当でOK（Updateで上書きされるため）
+        transform.position = new Vector2(posX, 10f); 
+        
+        // 2D Spriteの幅を width に合わせる
+        transform.localScale = new Vector3(width * 0.8f, 0.5f, 1f);
     }
 
     void Update() {
-        // 現在の曲の再生時間（AudioSourceから取ってもOK）
-        // ここでは単純なTime.timeで「判定までの残り時間」を計算
-        float currentTime = Time.time; 
-        float timeRemaining = targetTime - currentTime;
+        if (bgm == null) return;
 
-        // 2. 位置の計算（判定ラインを Z=0 とした場合）
-        // 残り時間にスピードをかけると、ちょうど 0秒で Z=0 に到達する
-        float posZ = timeRemaining * scrollSpeed;
+        // 曲の時間を基準に「判定ライン(Y=0)までの距離」を計算
+        float timeRemaining = targetTime - bgm.time;
+
+        // Y座標 = 残り時間 × スピード
+        // timeRemainingが0のとき、ちょうど Y=0 に重なる
+        float posY = timeRemaining * scrollSpeed;
         
-        transform.position = new Vector3(transform.position.x, transform.position.y, posZ);
+        transform.position = new Vector2(transform.position.x, posY);
 
-        // 3. 判定ラインを通り過ぎて一定時間（1秒とか）経ったら消える
-        if (timeRemaining < -1.0f) {
+        // 判定ラインを通り過ぎて0.5秒後に消去
+        if (timeRemaining < -0.5f) {
             Destroy(gameObject);
         }
     }
