@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pro-FNF-Seka Editor</title>
+    <style>
+        /* 12レーンの見た目を作る */
+        #editor { display: flex; background: #222; width: 600px; height: 800px; position: relative; overflow-y: scroll; border: 2px solid #555; }
+        .lane { width: 50px; height: 2000px; border-right: 1px solid #444; position: relative; }
+        .note { position: absolute; background: cyan; border: 1px solid white; cursor: pointer; }
+        #controls { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Pro-FNF-Seka Editor</h1>
+    <div id="editor">
+        <!-- 12本のレーンを生成 -->
+        <script>
+            for(let i=0; i<12; i++) document.write(`<div class="lane" onclick="addNote(${i}, event)"></div>`);
+        </script>
+    </div>
+
+    <div id="controls">
+        <button onclick="exportJSON()">Uh! (JSON出力)</button>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        let notes = []; // [time, lane, length, width]
+        const bpm = 160;
+        const pixelsPerMs = 0.5; // 1msあたり何ピクセルか（スクロール速度）
+
+        function addNote(lane, event) {
+            const rect = event.target.getBoundingClientRect();
+            const y = event.clientY - rect.top;
+            const time = Math.floor(y / pixelsPerMs);
+            const width = 2; // デフォルトの太さ
+            
+            notes.push([time, lane, 0, width]);
+            
+            // 画面にノーツ（青い四角）を表示
+            const n = document.createElement('div');
+            n.className = 'note';
+            n.style.top = y + "px";
+            n.style.width = (width * 50) + "px";
+            n.style.height = "20px";
+            event.target.appendChild(n);
+        }
+
+        function exportJSON() {
+            const data = {
+                song: {
+                    song: "MyCustomSong",
+                    bpm: bpm,
+                    notes: [{ sectionNotes: notes, mustHitSection: true }]
+                }
+            };
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
