@@ -1,61 +1,155 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-    <title>Pro-FNF-Seka Editor</title>
+    <meta charset="UTF-8">
+    <title>音ゲー専用Editor</title>
     <style>
-        /* 12レーンの見た目を作る */
-        #editor { display: flex; background: #222; width: 600px; height: 800px; position: relative; overflow-y: scroll; border: 2px solid #555; }
-        .lane { width: 50px; height: 2000px; border-right: 1px solid #444; position: relative; }
-        .note { position: absolute; background: cyan; border: 1px solid white; cursor: pointer; }
-        #controls { margin-top: 20px; }
+        :root { --lane-w: 40px; --bg: #0d0d0d; --accent: #00ffcc; }
+        body { background: #1a1a1a; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* 編集エリア */
+        #main-view { flex: 1; overflow-y: scroll; position: relative; background: var(--bg); display: flex; justify-content: center; border-right: 2px solid #333; }
+        #grid { position: relative; width: calc(var(--lane-w) * 12); background: linear-gradient(90deg, #222 1px, transparent 1px); background-size: var(--lane-w) 100%; border-left: 1px solid #444; }
+        
+        /* 判定線や目盛り */
+        .line { position: absolute; width: 100%; height: 1px; background: #333; pointer-events: none; }
+        .line.beat { background: #555; }
+        .line.measure { background: var(--accent); opacity: 0.4; height: 2px; }
+
+        /* サイドパネル */
+        #side-panel { width: 340px; padding: 25px; display: flex; flex-direction: column; gap: 15px; background: #252525; box-shadow: -10px 0 20px rgba(0,0,0,0.5); z-index: 10; }
+        
+        /* ノーツ */
+        .note { position: absolute; background: var(--accent); border: 1px solid #fff; border-radius: 3px; cursor: pointer; color: #000; font-weight: bold; text-align: center; line-height: 24px; box-shadow: 0 0 10px var(--accent); }
+        .note:hover { filter: brightness(1.2); }
+
+        h2 { margin: 0; color: var(--accent); font-size: 1.2em; border-left: 4px solid var(--accent); padding-left: 10px; }
+        input, button, textarea { background: #111; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 5px; font-family: monospace; }
+        button { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
+        button:hover { transform: scale(1.05); filter: brightness(1.1); }
+        textarea { flex: 1; font-size: 11px; color: #00ff88; margin-top: 10px; }
+        .info { font-size: 0.8em; color: #aaa; }
     </style>
 </head>
 <body>
-    <h1>Pro-FNF-Seka Editor</h1>
-    <div id="editor">
-        <!-- 12本のレーンを生成 -->
-        <script>
-            for(let i=0; i<12; i++) document.write(`<div class="lane" onclick="addNote(${i}, event)"></div>`);
-        </script>
+
+<div id="main-view">
+    <div id="grid" onclick="addNote(event)"></div>
+</div>
+
+<div id="side-panel">
+    <h2>音ゲー専用Editor</h2>
+    <label class="info">BPM: <input type="number" id="bpm" value="160" onchange="initGrid()"></label>
+    <label class="info">ノーツの幅 (1-12): <input type="number" id="width" value="2" min="1" max="12"></label>
+    <label class="info">スクロール倍率: <input type="range" id="zoom" min="100" max="1000" value="400" oninput="initGrid()"></label>
+    
+    <div id="status" style="font-weight: bold; color: var(--accent);">Time: 0.000s</div>
+    
+    <button onclick="downloadJSON()">JSONファイルを保存</button>
+    
+    <div class="info">
+        [操作説明]<br>
+        ・左クリック: ノーツ設置<br>
+        ・右クリック: ノーツ削除<br>
+        ・スクロール: 時間移動
     </div>
 
-    <div id="controls">
-        <button onclick="exportJSON()">Uh! (JSON出力)</button>
-        <pre id="output"></pre>
-    </div>
+    <textarea id="output" readonly></textarea>
+</div>
 
-    <script>
-        let notes = []; // [time, lane, length, width]
-        const bpm = 160;
-        const pixelsPerMs = 0.5; // 1msあたり何ピクセルか（スクロール速度）
+<script>
+    let notes = []; 
+    const grid = document.getElementById('grid');
+    const mainView = document.getElementById('main-view');
 
-        function addNote(lane, event) {
-            const rect = event.target.getBoundingClientRect();
-            const y = event.clientY - rect.top;
-            const time = Math.floor(y / pixelsPerMs);
-            const width = 2; // デフォルトの太さ
-            
-            notes.push([time, lane, 0, width]);
-            
-            // 画面にノーツ（青い四角）を表示
-            const n = document.createElement('div');
-            n.className = 'note';
-            n.style.top = y + "px";
-            n.style.width = (width * 50) + "px";
-            n.style.height = "20px";
-            event.target.appendChild(n);
+    function initGrid() {
+        const bpm = document.getElementById('bpm').value;
+        const zoom = document.getElementById('zoom').value;
+        const secPerBeat = 60 / bpm;
+        
+        grid.innerHTML = '';
+        // 100小節分（400拍）描画
+        for(let i=0; i<400; i++) {
+            const line = document.createElement('div');
+            line.className = 'line ' + (i % 4 === 0 ? 'measure' : 'beat');
+            line.style.top = (i * secPerBeat * zoom) + "px";
+            grid.appendChild(line);
         }
+        grid.style.height = (400 * secPerBeat * zoom) + "px";
+        notes.forEach(renderNote);
+        updateJSON();
+    }
 
-        function exportJSON() {
-            const data = {
-                song: {
-                    song: "MyCustomSong",
-                    bpm: bpm,
-                    notes: [{ sectionNotes: notes, mustHitSection: true }]
-                }
-            };
-            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
-        }
-    </script>
+    function addNote(e) {
+        if(e.target !== grid) return;
+        const bpm = document.getElementById('bpm').value;
+        const zoom = document.getElementById('zoom').value;
+        const rect = grid.getBoundingClientRect();
+        
+        const y = e.clientY - rect.top;
+        
+        // 【スナップ機能】16分音符（1拍の4分の1）に吸い付かせる
+        const secPerBeat = 60 / bpm;
+        const pxPer16th = (secPerBeat / 4) * zoom;
+        const snappedY = Math.round(y / pxPer16th) * pxPer16th;
+
+        const time = Math.round((snappedY / zoom) * 1000);
+        const lane = Math.floor((e.clientX - rect.left) / 40);
+        const width = parseInt(document.getElementById('width').value);
+
+        // 重複チェック
+        if(notes.some(n => n.time === time && n.lane === lane)) return;
+
+        const newNote = { time, lane, length: 0, width };
+        notes.push(newNote);
+        renderNote(newNote);
+        updateJSON();
+    }
+
+    function renderNote(note) {
+        const zoom = document.getElementById('zoom').value;
+        const n = document.createElement('div');
+        n.className = 'note';
+        n.style.top = ((note.time / 1000) * zoom) + "px";
+        n.style.left = (note.lane * 40) + "px";
+        n.style.width = (note.width * 40) + "px";
+        n.style.height = "24px";
+        n.innerText = note.width;
+        
+        n.oncontextmenu = (e) => {
+            e.preventDefault();
+            notes = notes.filter(v => v !== note);
+            n.remove();
+            updateJSON();
+        };
+        grid.appendChild(n);
+    }
+
+    function updateJSON() {
+        const data = {
+            song: {
+                song: "MyCustomSong",
+                bpm: parseFloat(document.getElementById('bpm').value),
+                notes: [{ sectionNotes: notes.sort((a,b) => a.time - b.time).map(n => [n.time, n.lane, n.length, n.width]), mustHitSection: true }]
+            }
+        };
+        document.getElementById('output').value = JSON.stringify(data, null, 2);
+    }
+
+    function downloadJSON() {
+        const blob = new Blob([document.getElementById('output').value], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'chart.json';
+        a.click();
+    }
+
+    mainView.onscroll = () => {
+        const zoom = document.getElementById('zoom').value;
+        document.getElementById('status').innerText = `Time: ${(mainView.scrollTop / zoom).toFixed(3)}s`;
+    };
+
+    initGrid();
+</script>
 </body>
 </html>
