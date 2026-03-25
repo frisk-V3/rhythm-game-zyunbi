@@ -8,20 +8,18 @@ using UnityEngine;
 [Serializable] public class NoteWrapper { public float[] row; }
 
 public class ChartManager : MonoBehaviour {
-    [Header("ファイル設定")]
-    public TextAsset jsonFile;      // エディタで作ったJSON
-    public GameObject notePrefab;   // ノーツのPrefab
-    public AudioSource bgm;         // BGM
+    public TextAsset jsonFile;
+    public GameObject notePrefab;
+    public AudioSource bgm;
 
-    [Header("ゲーム設定")]
-    public float noteSpeed = 15.0f; // 落ちる速度
-    public float spawnOffset = 2.0f; // 何秒前に出現させるか
+    public float noteSpeed = 10.0f; // 落ちる速さ
+    public float spawnOffset = 2.0f; // 2秒前に出現
 
     private List<NoteData> noteList = new List<NoteData>();
 
     [Serializable]
     public class NoteData {
-        public float targetTime; // 叩くべき秒
+        public float targetTime;
         public int lane;
         public int width;
         public bool isSpawned = false;
@@ -30,7 +28,6 @@ public class ChartManager : MonoBehaviour {
     void Start() {
         if (jsonFile == null) return;
         
-        // --- [[...]] を JsonUtility が読める形式に置換ハック ---
         string jsonText = jsonFile.text;
         jsonText = jsonText.Replace("[[", "[{\"row\":[");
         jsonText = jsonText.Replace("],[", "]},{\"row\":[");
@@ -42,30 +39,23 @@ public class ChartManager : MonoBehaviour {
             foreach (var sec in data.song.notes) {
                 foreach (var wrapper in sec.sectionNotes) {
                     float[] arr = wrapper.row;
-                    if (arr.Length >= 4) {
-                        noteList.Add(new NoteData {
-                            targetTime = arr[0] / 1000f, // msを秒に
-                            lane = (int)arr[1],
-                            width = (int)arr[3]
-                        });
-                    }
+                    noteList.Add(new NoteData {
+                        targetTime = arr[0] / 1000f,
+                        lane = (int)arr[1],
+                        width = (int)arr[3]
+                    });
                 }
             }
         }
-
-        // 時間順に並び替え
         noteList.Sort((a, b) => a.targetTime.CompareTo(b.targetTime));
-        
         if (bgm != null) bgm.Play();
     }
 
     void Update() {
         if (bgm == null || !bgm.isPlaying) return;
-
         float currentTime = bgm.time;
 
         foreach (var note in noteList) {
-            // 指定時間の「spawnOffset秒前」になったら生成メッセージ
             if (!note.isSpawned && currentTime >= note.targetTime - spawnOffset) {
                 note.isSpawned = true;
                 SpawnNote(note);
@@ -77,8 +67,8 @@ public class ChartManager : MonoBehaviour {
         GameObject obj = Instantiate(notePrefab);
         Note noteScript = obj.GetComponent<Note>();
         if (noteScript != null) {
-            // ノーツ自身に「初期位置・幅・目標時間・速度」を伝える
-            noteScript.Init(data.lane, data.width, data.targetTime, noteSpeed);
+            // 2Dなので「現在のBGM時間」も渡して同期させます
+            noteScript.Init(data.lane, data.width, data.targetTime, noteSpeed, bgm);
         }
     }
 }
